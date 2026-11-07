@@ -293,12 +293,6 @@ export default function ZeniPosLandingPage() {
                 Hubungi
               </button>
               <Link
-                href="/dashboard"
-                className="text-sm text-text-muted hover:text-text transition-colors duration-300"
-              >
-                Dashboard
-              </Link>
-              <Link
                 href="/login"
                 className="text-sm px-4 py-1.5 rounded-full bg-primary hover:bg-primary-hover text-on-primary transition-colors duration-300 font-medium shadow-xs"
               >
