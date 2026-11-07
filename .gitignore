@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# superpowers scratch
+.superpowers/
+
+# reference templates
+hotel-dashboard.zip
+sign-in-with-google/
+terra-landing-page/
