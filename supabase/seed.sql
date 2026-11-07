@@ -125,6 +125,38 @@ insert into auth.users (
   encrypted_password = excluded.encrypted_password,
   email = excluded.email;
 
+-- 1.5 Seed Auth Identities & Tokens (Required by Supabase GoTrue Auth)
+insert into auth.identities (
+  id,
+  user_id,
+  identity_data,
+  provider,
+  provider_id,
+  last_sign_in_at,
+  created_at,
+  updated_at
+)
+select
+  u.id,
+  u.id,
+  json_build_object('sub', u.id::text, 'email', u.email)::jsonb,
+  'email',
+  u.id::text,
+  now(),
+  now(),
+  now()
+from auth.users u
+left join auth.identities i on i.user_id = u.id
+where i.id is null;
+
+update auth.users
+set 
+  confirmation_token = coalesce(confirmation_token, ''),
+  recovery_token = coalesce(recovery_token, ''),
+  email_change_token_new = coalesce(email_change_token_new, ''),
+  email_change = coalesce(email_change, ''),
+  is_sso_user = coalesce(is_sso_user, false)
+where confirmation_token is null or recovery_token is null or is_sso_user is null;
 
 -- ==========================================
 -- 2. SEED UMKM

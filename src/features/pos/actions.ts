@@ -34,14 +34,14 @@ export async function createSaleAction(input: CreateSaleInput): Promise<{
     }
 
     // Call atomic idempotent RPC function on database
-    const { data: saleId, error: rpcError } = await supabase.rpc("create_sale", {
-      p_sale_id: validated.id,
-      p_umkm_id: profile.umkm_id,
+    const { data: createdSale, error: rpcError } = await supabase.rpc("create_sale", {
+      p_id: validated.id,
       p_invoice_no: validated.invoice_no,
       p_total: validated.total,
       p_payment_method: validated.payment_method,
       p_paid_amount: validated.paid_amount,
       p_sold_at: validated.sold_at || new Date().toISOString(),
+      p_note: validated.note || null,
       p_items: validated.items.map((item) => ({
         product_id: item.product_id,
         product_name: item.product_name,
@@ -53,14 +53,20 @@ export async function createSaleAction(input: CreateSaleInput): Promise<{
     });
 
     if (rpcError) {
-      // Check if rejection was due to subscription expiration
-      if (rpcError.message.includes("Langganan UMKM tidak aktif") || rpcError.message.includes("kedaluwarsa")) {
+      console.error("create_sale RPC error:", rpcError);
+      if (
+        rpcError.message.includes("Langganan UMKM tidak aktif") ||
+        rpcError.message.includes("kedaluwarsa")
+      ) {
         return {
           success: false,
           error: "Transaksi ditolak: Masa aktif langganan UMKM telah berakhir. Hubungi admin untuk perpanjang.",
         };
       }
-      throw rpcError;
+      return {
+        success: false,
+        error: rpcError.message || "Gagal mencatat transaksi penjualan",
+      };
     }
 
     revalidatePath("/penjualan");
@@ -68,13 +74,21 @@ export async function createSaleAction(input: CreateSaleInput): Promise<{
     revalidatePath("/laporan");
     revalidatePath("/kasir");
 
+    const saleRecord = createdSale as { id?: string } | null;
+
     return {
       success: true,
-      saleId: (saleId as string) || validated.id,
+      saleId: saleRecord?.id || validated.id,
       invoiceNo: validated.invoice_no,
     };
   } catch (err: unknown) {
     console.error("createSaleAction error:", err);
-    return { success: false, error: err instanceof Error ? err.message : "Gagal mencatat transaksi penjualan" };
+    const msg =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null && "message" in err
+        ? String((err as { message: unknown }).message)
+        : "Gagal mencatat transaksi penjualan";
+    return { success: false, error: msg };
   }
 }
