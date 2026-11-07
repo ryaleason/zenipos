@@ -137,6 +137,9 @@ export async function getStockMovementsAction(productId?: string): Promise<{
 
     return { success: true, movements };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     return { success: false, movements: [], error: err instanceof Error ? err.message : "Gagal memuat riwayat stok" };
   }
 }

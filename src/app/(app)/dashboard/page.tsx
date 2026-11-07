@@ -50,19 +50,25 @@ async function OwnerDashboardContent() {
   if (user) {
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("id, full_name, role, must_change_password, umkm_id")
+      .select(`
+        id,
+        full_name,
+        role,
+        must_change_password,
+        umkm_id,
+        umkm:umkm_id (*)
+      `)
       .eq("id", user.id)
       .single();
-    profile = profileData;
 
-    if (profile?.umkm_id) {
-      const { data: umkmData } = await supabase
-        .from("umkm")
-        .select("*")
-        .eq("id", profile.umkm_id)
-        .single();
-      umkm = umkmData;
-    }
+    profile = profileData;
+    umkm = profileData?.umkm as unknown as {
+      name?: string;
+      owner_name?: string;
+      phone?: string;
+      active_until?: string;
+      status?: string;
+    } | null;
   }
 
   // Fallback values if accessed in development without live Supabase session

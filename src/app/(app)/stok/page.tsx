@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { getProductsAction } from "@/features/products/actions";
 import { getStockMovementsAction } from "@/features/stock/actions";
 import { StockManagement } from "@/features/stock/components/stock-management";
@@ -22,23 +22,14 @@ function StockSkeleton() {
 }
 
 async function StockContent() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const profile = await getCurrentUserProfile();
 
-  if (!user) {
+  if (!profile) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
   // Golden Rule 8: Cashier cannot access stock management/cost details
-  if (profile?.role !== "owner") {
+  if (profile.role !== "owner") {
     redirect("/kasir");
   }
 

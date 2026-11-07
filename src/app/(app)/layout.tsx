@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { logoutAction } from "@/features/auth/actions";
 import {
@@ -32,37 +33,25 @@ function NavSkeleton() {
 }
 
 async function AppNav() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const profile = await getCurrentUserProfile();
 
-  if (!user) {
+  if (!profile) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, role, must_change_password, umkm_id")
-    .eq("id", user.id)
-    .single();
+  if (!profile.isActive) {
+    const supabase = await createServerClient();
+    await supabase.auth.signOut();
+    redirect("/login");
+  }
 
-  if (profile?.must_change_password) {
+  if (profile.mustChangePassword) {
     redirect("/ganti-password");
   }
 
-  const isOwner = profile?.role === "owner";
+  const isOwner = profile.role === "owner";
   const roleLabel = isOwner ? "Pemilik" : "Kasir";
-
-  let businessName = "ZeniPOS";
-  if (profile?.umkm_id) {
-    const { data: umkm } = await supabase
-      .from("umkm")
-      .select("name")
-      .eq("id", profile.umkm_id)
-      .single();
-    if (umkm?.name) businessName = umkm.name;
-  }
+  const businessName = profile.umkmName;
 
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ownerOnly: false },
@@ -111,8 +100,8 @@ async function AppNav() {
         {/* Bottom User Area */}
         <div className="p-4 border-t border-border space-y-2">
           <div className="text-xs text-text-muted truncate">
-            <p className="font-semibold text-text">{profile?.full_name || "Pengguna"}</p>
-            <p className="text-[11px] text-text-faint truncate">{user.email}</p>
+            <p className="font-semibold text-text">{profile.fullName || "Pengguna"}</p>
+            <p className="text-[11px] text-text-faint truncate">{profile.email}</p>
           </div>
           <div className="flex items-center gap-2 pt-2">
             <Link

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { getProfitLossReportAction } from "@/features/reports/actions";
 import { ReportDashboard } from "@/features/reports/components/report-dashboard";
 import { BarChart3 } from "lucide-react";
@@ -26,35 +26,18 @@ function ReportSkeleton() {
 }
 
 async function ReportContent() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const profile = await getCurrentUserProfile();
 
-  if (!user) {
+  if (!profile) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, umkm_id")
-    .eq("id", user.id)
-    .single();
-
   // Golden Rule 8: Cashier cannot view profit reports or cost prices
-  if (profile?.role !== "owner") {
+  if (profile.role !== "owner") {
     redirect("/kasir");
   }
 
-  let storeName = "ZeniPOS";
-  if (profile?.umkm_id) {
-    const { data: umkm } = await supabase
-      .from("umkm")
-      .select("name")
-      .eq("id", profile.umkm_id)
-      .single();
-    if (umkm?.name) storeName = umkm.name;
-  }
+  const storeName = profile.umkmName;
 
   const res = await getProfitLossReportAction({ period: "month" });
   const report = res.success && res.report

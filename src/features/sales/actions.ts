@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth";
 
 export interface SaleDetailItem {
   id: string;
@@ -42,12 +43,10 @@ export async function getSalesHistoryAction(options?: {
   error?: string;
 }> {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
+    const user = await getSessionUser();
     if (!user) return { success: false, sales: [], error: "Sesi login tidak valid." };
+
+    const supabase = await createServerClient();
 
     let query = supabase
       .from("sales")
@@ -137,6 +136,9 @@ export async function getSalesHistoryAction(options?: {
 
     return { success: true, sales };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     console.error("getSalesHistoryAction error:", err);
     return { success: false, sales: [], error: err instanceof Error ? err.message : "Gagal memuat riwayat penjualan" };
   }

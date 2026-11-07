@@ -31,22 +31,35 @@ async function SettingsContent() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  interface ProfileWithUmkm {
+    role: string;
+    umkm_id: string | null;
+    umkm: {
+      id: string;
+      name: string;
+      phone: string;
+      address: string | null;
+    } | null;
+  }
+
+  const { data: profileData } = await supabase
     .from("profiles")
-    .select("role, umkm_id")
+    .select(`
+      role,
+      umkm_id,
+      umkm:umkm_id ( id, name, phone, address )
+    `)
     .eq("id", user.id)
     .single();
 
+  const profile = profileData as unknown as ProfileWithUmkm | null;
+
   // Golden Rule 8: Cashier cannot access settings/cashier provisioning
-  if (profile?.role !== "owner" || !profile?.umkm_id) {
+  if (profile?.role !== "owner" || !profile?.umkm_id || !profile.umkm) {
     redirect("/kasir");
   }
 
-  const { data: umkm } = await supabase
-    .from("umkm")
-    .select("id, name, phone, address")
-    .eq("id", profile.umkm_id)
-    .single();
+  const umkm = profile.umkm;
 
   if (!umkm) {
     redirect("/dashboard");

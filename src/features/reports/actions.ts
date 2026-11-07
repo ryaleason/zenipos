@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 
 export interface TopProductItem {
   product_name: string;
@@ -40,22 +41,12 @@ export async function getProfitLossReportAction(options?: {
   error?: string;
 }> {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return { success: false, error: "Silakan login terlebih dahulu." };
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("umkm_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.umkm_id || profile.role !== "owner") {
+    const profile = await getCurrentUserProfile();
+    if (!profile?.umkmId || profile.role !== "owner") {
       return { success: false, error: "Akses ditolak: Hanya pemilik yang dapat melihat laporan laba rugi." };
     }
+
+    const supabase = await createServerClient();
 
     const now = new Date();
     let startIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString(); // Default month start
@@ -182,6 +173,9 @@ export async function getProfitLossReportAction(options?: {
       },
     };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     console.error("getProfitLossReportAction error:", err);
     return { success: false, error: err instanceof Error ? err.message : "Gagal menghitung laporan laba rugi" };
   }

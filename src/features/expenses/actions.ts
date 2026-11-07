@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { expenseSchema, type ExpenseInput } from "./schemas";
 
 export interface ExpenseRecord {
@@ -29,22 +30,12 @@ export async function getExpensesAction(options?: {
   error?: string;
 }> {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return { success: false, expenses: [], totalAmount: 0, error: "Silakan login terlebih dahulu." };
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("umkm_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.umkm_id || profile.role !== "owner") {
+    const profile = await getCurrentUserProfile();
+    if (!profile?.umkmId || profile.role !== "owner") {
       return { success: false, expenses: [], totalAmount: 0, error: "Akses ditolak: Hanya pemilik yang dapat melihat pengeluaran." };
     }
+
+    const supabase = await createServerClient();
 
     let query = supabase
       .from("expenses")
@@ -103,6 +94,9 @@ export async function getExpensesAction(options?: {
 
     return { success: true, expenses, totalAmount };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     console.error("getExpensesAction error:", err);
     return { success: false, expenses: [], totalAmount: 0, error: err instanceof Error ? err.message : "Gagal memuat pengeluaran" };
   }

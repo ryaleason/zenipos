@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { getProductsAction, getCategoriesAction } from "@/features/products/actions";
 import { ProductManagement } from "@/features/products/components/product-management";
 import { Package } from "lucide-react";
@@ -21,22 +21,12 @@ function ProductSkeleton() {
 }
 
 async function ProductContent() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const profile = await getCurrentUserProfile();
+  if (!profile) {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const isOwner = profile?.role === "owner";
+  const isOwner = profile.role === "owner";
 
   const [productsRes, categoriesRes] = await Promise.all([
     getProductsAction(),

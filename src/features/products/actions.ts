@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { productSchema, categorySchema, type ProductInput, type CategoryInput } from "./schemas";
 
 export interface ProductWithStock {
@@ -71,25 +72,12 @@ export async function getProductsAction(): Promise<{
   error?: string;
 }> {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    const profile = await getCurrentUserProfile();
+    if (!profile?.umkmId) {
       return { success: false, products: [], error: "Sesi tidak valid. Silakan login." };
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("umkm_id, role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile?.umkm_id) {
-      return { success: false, products: [], error: "UMKM tidak ditemukan untuk akun ini." };
-    }
-
+    const supabase = await createServerClient();
     const isCashier = profile.role === "cashier";
 
     // If cashier, query cashier_products_view (which already excludes cost_price and calculates stock)
@@ -161,6 +149,9 @@ export async function getProductsAction(): Promise<{
 
     return { success: true, products };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     console.error("getProductsAction error:", err);
     return { success: false, products: [], error: err instanceof Error ? err.message : "Gagal memuat produk" };
   }
@@ -357,6 +348,9 @@ export async function getCategoriesAction(): Promise<{
     if (error) throw error;
     return { success: true, categories: data || [] };
   } catch (err: unknown) {
+    if (err && typeof err === "object" && "digest" in err) {
+      throw err;
+    }
     return { success: false, categories: [], error: err instanceof Error ? err.message : "Gagal memuat kategori" };
   }
 }

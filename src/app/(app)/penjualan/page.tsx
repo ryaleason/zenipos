@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { getSalesHistoryAction } from "@/features/sales/actions";
 import { SalesHistory } from "@/features/sales/components/sales-history";
 import { Receipt } from "lucide-react";
@@ -21,34 +21,15 @@ function SalesSkeleton() {
 }
 
 async function SalesContent() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const profile = await getCurrentUserProfile();
+  if (!profile) {
     redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, umkm_id")
-    .eq("id", user.id)
-    .single();
-
-  let storeName = "ZeniPOS";
-  if (profile?.umkm_id) {
-    const { data: umkm } = await supabase
-      .from("umkm")
-      .select("name")
-      .eq("id", profile.umkm_id)
-      .single();
-    if (umkm?.name) storeName = umkm.name;
   }
 
   const res = await getSalesHistoryAction();
   const sales = res.success ? res.sales : [];
-  const isOwner = profile?.role === "owner";
+  const isOwner = profile.role === "owner";
+  const storeName = profile.umkmName;
 
   return (
     <div className="space-y-6">

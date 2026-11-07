@@ -32,6 +32,7 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // Fast session refresh without blocking database queries
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -60,50 +61,12 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/pengaturan");
 
   // Unauthenticated user attempting to access protected route
-  if (!user) {
-    if (isProtectedPath) {
-      return createRedirect("/login");
-    }
-    return supabaseResponse;
-  }
-
-  // Query authenticated user profile
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role, must_change_password, is_active")
-    .eq("id", user.id)
-    .single();
-
-  // If profile is inactive, force sign out and redirect to login
-  if (profile && !profile.is_active) {
-    await supabase.auth.signOut();
+  if (!user && isProtectedPath) {
     return createRedirect("/login");
   }
 
-  const mustChangePassword = profile?.must_change_password ?? false;
-  const isAdmin = profile?.role === "admin";
-  const defaultDestination = isAdmin ? "/admin" : "/dashboard";
-
-  // Forced password change flow
-  if (mustChangePassword) {
-    if (pathname !== "/ganti-password") {
-      return createRedirect("/ganti-password");
-    }
-    return supabaseResponse;
-  }
-
-  // Already changed password but visiting /ganti-password
-  if (pathname === "/ganti-password") {
-    return createRedirect(defaultDestination);
-  }
-
-  // Authenticated user visiting /login
-  if (pathname === "/login") {
-    return createRedirect(defaultDestination);
-  }
-
-  // Admin route protection: only users with role === 'admin' can access /admin
-  if (pathname.startsWith("/admin") && !isAdmin) {
+  // Authenticated user attempting to visit /login
+  if (user && pathname === "/login") {
     return createRedirect("/dashboard");
   }
 
