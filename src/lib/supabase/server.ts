@@ -3,11 +3,16 @@ import { cookies } from "next/headers";
 
 export async function createClient() {
   const cookieStore = await cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  if (!url || !key) {
+    throw new Error(
+      "Konfigurasi Supabase belum diatur di server. Pastikan NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY sudah ditambahkan pada Environment Variables di Vercel Dashboard."
+    );
+  }
+
+  return createServerClient(url, key, {
       cookies: {
         getAll() {
           return cookieStore.getAll();
