@@ -12,7 +12,6 @@ import {
   Package,
   BarChart3,
   WifiOff,
-  CheckCircle2,
 } from "lucide-react"
 import { WorldMap } from "@/components/world-map"
 
