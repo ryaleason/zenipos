@@ -1,5 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUserProfile } from "@/lib/auth";
 import { LoginForm } from "@/features/auth/components/login-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Store, ArrowLeft } from "lucide-react";
@@ -9,7 +12,30 @@ export const metadata: Metadata = {
   description: "Masuk ke aplikasi kasir dan pencatatan penjualan ZeniPOS",
 };
 
-export default function LoginPage() {
+function LoginSkeleton() {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-bg-subtle text-text animate-pulse">
+      <div className="w-full max-w-[420px] h-96 bg-bg-muted rounded-2xl" />
+    </div>
+  );
+}
+
+async function LoginContent() {
+  const profile = await getCurrentUserProfile();
+
+  if (profile) {
+    if (profile.mustChangePassword) {
+      redirect("/ganti-password");
+    }
+    if (profile.role === "admin") {
+      redirect("/admin");
+    }
+    if (profile.role === "cashier") {
+      redirect("/kasir");
+    }
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-bg-subtle text-text">
       <div className="w-full max-w-[420px] space-y-6">
@@ -62,5 +88,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginSkeleton />}>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -65,11 +65,6 @@ export async function middleware(request: NextRequest) {
     return createRedirect("/login");
   }
 
-  // Authenticated user attempting to visit /login
-  if (user && pathname === "/login") {
-    return createRedirect("/dashboard");
-  }
-
   return supabaseResponse;
 }
 

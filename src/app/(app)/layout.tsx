@@ -45,6 +45,10 @@ async function AppNav() {
     redirect("/login");
   }
 
+  if (profile.role === "admin") {
+    redirect("/admin");
+  }
+
   if (profile.mustChangePassword) {
     redirect("/ganti-password");
   }
@@ -54,7 +58,7 @@ async function AppNav() {
   const businessName = profile.umkmName;
 
   const navLinks = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ownerOnly: false },
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, ownerOnly: true },
     { href: "/kasir", label: "Kasir", icon: ShoppingBag, ownerOnly: false },
     { href: "/penjualan", label: "Penjualan", icon: History, ownerOnly: false },
     { href: "/produk", label: "Produk", icon: Package, ownerOnly: false },
