@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useSyncExternalStore, useCallback } from "react";
 import { formatRupiah, formatDateTime } from "@/lib/format";
+import { toast } from "@/hooks/use-toast";
 import type { ProductWithStock, CategoryItem } from "@/features/products/actions";
 import { createSaleAction } from "@/features/pos/actions";
 import { generateInvoiceNo, formatReceiptWhatsAppText } from "@/features/pos/utils";
@@ -60,7 +61,13 @@ export function CashierTerminal({
   initialProducts: ProductWithStock[];
   categories: CategoryItem[];
 }) {
-  const products = initialProducts;
+  const [products, setProducts] = useState<ProductWithStock[]>(initialProducts);
+  const [prevInitial, setPrevInitial] = useState<ProductWithStock[]>(initialProducts);
+
+  if (initialProducts !== prevInitial) {
+    setPrevInitial(initialProducts);
+    setProducts(initialProducts);
+  }
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -149,9 +156,26 @@ export function CashierTerminal({
   }, [cart]);
 
   const addToCart = (product: ProductWithStock) => {
+    if (product.track_stock && product.stock <= 0) {
+      toast({
+        title: "Stok Habis",
+        description: `Produk "${product.name}" saat ini habis.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
+        if (product.track_stock && existing.qty >= product.stock) {
+          toast({
+            title: "Batas Stok Tercapai",
+            description: `Stok "${product.name}" hanya tersedia ${product.stock} pcs.`,
+            variant: "destructive",
+          });
+          return prev;
+        }
         return prev.map((item) =>
           item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item
         );
@@ -165,6 +189,14 @@ export function CashierTerminal({
       return prev
         .map((item) => {
           if (item.product.id === productId) {
+            if (delta > 0 && item.product.track_stock && item.qty >= item.product.stock) {
+              toast({
+                title: "Batas Stok Tercapai",
+                description: `Stok "${item.product.name}" hanya tersedia ${item.product.stock} pcs.`,
+                variant: "destructive",
+              });
+              return item;
+            }
             const newQty = item.qty + delta;
             return newQty > 0 ? { ...item, qty: newQty } : null;
           }
@@ -179,6 +211,20 @@ export function CashierTerminal({
   // Open checkout
   const handleOpenCheckout = () => {
     if (cart.length === 0) return;
+
+    // Verify stock before opening checkout modal
+    const overstockedItem = cart.find(
+      (item) => item.product.track_stock && item.qty > item.product.stock
+    );
+    if (overstockedItem) {
+      toast({
+        title: "Stok Tidak Mencukupi",
+        description: `Produk "${overstockedItem.product.name}" hanya memiliki stok ${overstockedItem.product.stock} pcs, namun dipesan ${overstockedItem.qty} pcs.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setPaidAmountInput(String(totalAmount));
     setErrorMessage(null);
     setIsCheckoutOpen(true);
@@ -189,6 +235,16 @@ export function CashierTerminal({
 
   // Submit Sale
   const handleCompleteSale = async () => {
+    const overstockedItem = cart.find(
+      (item) => item.product.track_stock && item.qty > item.product.stock
+    );
+    if (overstockedItem) {
+      setErrorMessage(
+        `Stok untuk "${overstockedItem.product.name}" tidak mencukupi (sisa ${overstockedItem.product.stock} pcs). Kurangi jumlah pesanan.`
+      );
+      return;
+    }
+
     if (paymentMethod === "cash" && paidAmount < totalAmount) {
       setErrorMessage("Uang tunai yang diterima kurang dari total belanja!");
       return;
@@ -231,6 +287,17 @@ export function CashierTerminal({
         });
         await refreshPendingCount();
       }
+
+      // Update local product stock in state immediately
+      setProducts((prev) =>
+        prev.map((p) => {
+          const sold = salePayload.items.find((item) => item.product_id === p.id);
+          if (sold && p.track_stock) {
+            return { ...p, stock: Math.max(0, p.stock - sold.qty) };
+          }
+          return p;
+        })
+      );
 
       // Success
       setCompletedSale(salePayload);
@@ -348,22 +415,51 @@ export function CashierTerminal({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               {filteredProducts.map((product) => {
+                const inCart = cart.find((item) => item.product.id === product.id);
+                const inCartQty = inCart?.qty || 0;
                 const isOutOfStock = product.track_stock && product.stock <= 0;
+                const isMaxInCart = product.track_stock && inCartQty >= product.stock;
+
                 return (
                   <button
                     key={product.id}
-                    onClick={() => !isOutOfStock && addToCart(product)}
-                    disabled={isOutOfStock}
+                    onClick={() => {
+                      if (isOutOfStock) {
+                        toast({
+                          title: "Stok Habis",
+                          description: `Produk "${product.name}" saat ini habis.`,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      if (isMaxInCart) {
+                        toast({
+                          title: "Batas Stok Tercapai",
+                          description: `Seluruh stok "${product.name}" (${product.stock} pcs) sudah ada di keranjang.`,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      addToCart(product);
+                    }}
+                    disabled={isOutOfStock || isMaxInCart}
                     className={`p-3.5 sm:p-4 rounded-xl border text-left flex flex-col justify-between transition-all active:scale-95 cursor-pointer min-h-[105px] ${
-                      isOutOfStock
+                      isOutOfStock || isMaxInCart
                         ? "bg-bg-muted border-border opacity-60 cursor-not-allowed"
                         : "bg-bg hover:border-primary/40 hover:shadow-xs border-border"
                     }`}
                   >
                     <div>
-                      <h3 className="font-bold text-sm text-text line-clamp-2 leading-tight">
-                        {product.name}
-                      </h3>
+                      <div className="flex items-start justify-between gap-1">
+                        <h3 className="font-bold text-sm text-text line-clamp-2 leading-tight">
+                          {product.name}
+                        </h3>
+                        {inCartQty > 0 && (
+                          <span className="shrink-0 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {inCartQty}
+                          </span>
+                        )}
+                      </div>
                       {product.category_name && (
                         <span className="text-[10px] text-text-faint block mt-0.5">
                           {product.category_name}
@@ -378,10 +474,20 @@ export function CashierTerminal({
                       {product.track_stock && (
                         <span
                           className={`text-[10px] font-medium ${
-                            product.stock <= product.min_stock ? "text-danger" : "text-text-faint"
+                            product.stock <= 0
+                              ? "text-danger font-semibold"
+                              : isMaxInCart
+                              ? "text-accent-amber font-semibold"
+                              : product.stock <= product.min_stock
+                              ? "text-danger"
+                              : "text-text-faint"
                           }`}
                         >
-                          {product.stock <= 0 ? "Habis" : `Stok: ${product.stock}`}
+                          {product.stock <= 0
+                            ? "Habis"
+                            : isMaxInCart
+                            ? `Penuh (${product.stock})`
+                            : `Sisa: ${product.stock - inCartQty}`}
                         </span>
                       )}
                     </div>
@@ -493,8 +599,14 @@ export function CashierTerminal({
                   </span>
                   <button
                     onClick={() => updateCartQty(item.product.id, 1)}
-                    className="w-8 h-8 rounded-lg border border-border bg-bg flex items-center justify-center text-text hover:bg-bg-muted transition-colors active:scale-95 cursor-pointer"
+                    disabled={item.product.track_stock && item.qty >= item.product.stock}
+                    className="w-8 h-8 rounded-lg border border-border bg-bg flex items-center justify-center text-text hover:bg-bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors active:scale-95 cursor-pointer"
                     aria-label="Tambah kuantitas"
+                    title={
+                      item.product.track_stock && item.qty >= item.product.stock
+                        ? `Stok maksimal (${item.product.stock}) telah tercapai`
+                        : "Tambah kuantitas"
+                    }
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>

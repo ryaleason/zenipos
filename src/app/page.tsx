@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
   Menu,
@@ -82,7 +83,40 @@ function AnimatedCounter({ value }: { value: string }) {
 export default function ZeniPosLandingPage() {
   const [isLoaded, setIsLoaded] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [userName, setUserName] = useState<string | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [selectedFeature, setSelectedFeature] = useState(0)
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, role")
+            .eq("id", user.id)
+            .single()
+          setUserName(profile?.full_name || user.email?.split("@")[0] || "Akun Saya")
+          setUserRole(profile?.role || "owner")
+        }
+      } catch {
+        // Not logged in or env missing
+      }
+    }
+    void loadUser()
+  }, [])
+
+  const userDestination = !userName
+    ? "/login"
+    : userRole === "admin"
+    ? "/admin"
+    : userRole === "cashier"
+    ? "/kasir"
+    : "/dashboard"
   const [imageFade, setImageFade] = useState(true)
   const [autoRotationKey, setAutoRotationKey] = useState(0)
   const [dynamicWordIndex, setDynamicWordIndex] = useState(0)
@@ -293,10 +327,11 @@ export default function ZeniPosLandingPage() {
                 Hubungi
               </button>
               <Link
-                href="/login"
-                className="text-sm px-4 py-1.5 rounded-full bg-primary hover:bg-primary-hover text-on-primary transition-colors duration-300 font-medium shadow-xs"
+                href={userDestination}
+                className="text-sm px-4 py-1.5 rounded-full bg-primary hover:bg-primary-hover text-on-primary transition-colors duration-300 font-medium shadow-xs max-w-[140px] truncate inline-block text-center"
+                title={userName || "Masuk"}
               >
-                Masuk
+                {userName || "Masuk"}
               </Link>
             </nav>
 
@@ -346,16 +381,10 @@ export default function ZeniPosLandingPage() {
               Hubungi
             </button>
             <Link
-              href="/dashboard"
-              className="font-serif text-4xl font-normal text-text hover:text-primary transition-colors duration-300 text-left"
+              href={userDestination}
+              className="font-serif text-4xl font-normal text-primary hover:text-primary-hover transition-colors duration-300 text-left max-w-full truncate"
             >
-              Dashboard
-            </Link>
-            <Link
-              href="/login"
-              className="font-serif text-4xl font-normal text-primary hover:text-primary-hover transition-colors duration-300 text-left"
-            >
-              Masuk
+              {userName || "Masuk"}
             </Link>
           </div>
         </div>
@@ -794,11 +823,8 @@ export default function ZeniPosLandingPage() {
                 Menu Cepat
               </div>
               <div className="flex flex-col gap-2">
-                <Link href="/dashboard" className="text-sm text-text-muted hover:text-text transition-colors">
-                  Dashboard Pemilik
-                </Link>
-                <Link href="/login" className="text-sm text-text-muted hover:text-text transition-colors">
-                  Halaman Masuk
+                <Link href={userDestination} className="text-sm text-text-muted hover:text-text transition-colors">
+                  {userName ? "Dashboard Akun" : "Halaman Masuk"}
                 </Link>
                 <button
                   onClick={() => scrollToSection("faq")}
